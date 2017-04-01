@@ -49,19 +49,9 @@ def patch_margin(height_index, width_index):
     -- mean_normalized_patch: mean normalized patch of size (BAND, PATCH_SIZE, PATCH_SIZE)
     whose top left corner is at (height_index, width_index)
     """
-
-    input_mirror = np.zeros(((HEIGHT + PATCH_SIZE - 1), (WIDTH + PATCH_SIZE - 1), BAND))
-    # extend the margin of the origin image
-    input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), PATCH_IDX:(WIDTH+PATCH_IDX), :] = input_mat[:]
-    input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), :PATCH_IDX, :] = input_mat[:, PATCH_IDX-1::-1, :]
-    input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), (WIDTH+PATCH_IDX):, :] = input_mat[:, :(WIDTH-PATCH_IDX-1):-1, :]
-    input_mirror[:PATCH_IDX, :, :] = input_mirror[(PATCH_IDX*2-1):(PATCH_IDX-1):-1, :, :]
-    input_mirror[(HEIGHT+PATCH_IDX):, :, :] = input_mirror[(HEIGHT+PATCH_IDX-1):(HEIGHT-1):-1, :, :]
-    transpose_array = np.transpose(input_mirror, (2, 0, 1))
-
     height_slice = slice(height_index, height_index + PATCH_SIZE)
     width_slice = slice(width_index, width_index + PATCH_SIZE)
-    patches = transpose_array[:, height_slice, width_slice]
+    patches = input_mirror_transposed[:, height_slice, width_slice]
     mean_normalized_patch = []
     for i in range(patches.shape[0]):
         mean_normalized_patch.append(patches[i] - MEAN_ARRAY[i])
@@ -152,12 +142,24 @@ input_mat = input_mat.astype(float)
 input_mat -= np.min(input_mat)
 input_mat /= np.max(input_mat)
 
+# extend the margin of the origin image
+
+input_mirror = np.zeros(((HEIGHT + PATCH_SIZE - 1), (WIDTH + PATCH_SIZE - 1), BAND))
+input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), PATCH_IDX:(WIDTH+PATCH_IDX), :] = input_mat[:]
+input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), :PATCH_IDX, :] = input_mat[:, PATCH_IDX-1::-1, :]
+input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), (WIDTH+PATCH_IDX):, :] = input_mat[:, :(WIDTH-PATCH_IDX-1):-1, :]
+input_mirror[:PATCH_IDX, :, :] = input_mirror[(PATCH_IDX*2-1):(PATCH_IDX-1):-1, :, :]
+input_mirror[(HEIGHT+PATCH_IDX):, :, :] = input_mirror[(HEIGHT+PATCH_IDX-1):(HEIGHT-1):-1, :, :]
+input_mirror_transposed = np.transpose(input_mirror, (2, 0, 1))
+
+
 # Calculate the mean of each channel for normalization
 
 MEAN_ARRAY = np.ndarray(shape=(BAND,), dtype=float)
 for i in range(BAND):
     MEAN_ARRAY[i] = np.mean(input_mat[:, :, i])
 
+    
 # Collect all available patches of each class from the given image (Ignore patches of margin or unknown target)
 
 for i in range(OUTPUT_CLASSES):
