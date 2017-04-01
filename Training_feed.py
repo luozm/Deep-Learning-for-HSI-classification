@@ -56,11 +56,11 @@ def eval_full_epoch(data_set):
 # Import training & test datasets from files
 
 # training set
-data_sets = Utils.read_data_sets(os.path.join(Utils.data_path, 'Train_'+str(Utils.patch_size)+str(Utils.test_frac)+str(Utils.oversample)+'.h5'), 'train')
+data_sets = Utils.read_data_sets(os.path.join(Utils.data_path, 'Train_'+str(Utils.patch_size)+str(Utils.oversample)+str(Utils.test_frac)+'.h5'), 'train')
 Training_data = data_sets
 
 # test set
-data_sets = Utils.read_data_sets(os.path.join(Utils.data_path, 'Test_'+str(Utils.patch_size)+str(Utils.test_frac)+str(Utils.oversample)+'.h5'), 'test')
+data_sets = Utils.read_data_sets(os.path.join(Utils.data_path, 'Test_'+str(Utils.patch_size)+str(Utils.oversample)+str(Utils.test_frac)+'.h5'), 'test')
 Test_data = data_sets
 
 
