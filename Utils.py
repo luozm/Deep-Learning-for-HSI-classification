@@ -41,7 +41,7 @@ patch_class = 500  # Number of training patches of each class (if over-sample)
 
 learning_rate = 0.01  # Initial learning rate
 max_steps = 50000  # Number of steps to run trainer
-batch_size = 100  # Batch size, must divide evenly into the dataset sizes
+batch_size = 50  # Batch size, must divide evenly into the dataset sizes
 
 
 # 2D model
