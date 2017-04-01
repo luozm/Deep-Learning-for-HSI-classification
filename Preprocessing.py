@@ -143,15 +143,13 @@ input_mat -= np.min(input_mat)
 input_mat /= np.max(input_mat)
 
 # extend the margin of the origin image
-
 input_mirror = np.zeros(((HEIGHT + PATCH_SIZE - 1), (WIDTH + PATCH_SIZE - 1), BAND))
-input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), PATCH_IDX:(WIDTH+PATCH_IDX), :] = input_mat[:]
-input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), :PATCH_IDX, :] = input_mat[:, PATCH_IDX-1::-1, :]
-input_mirror[PATCH_IDX:(HEIGHT+PATCH_IDX), (WIDTH+PATCH_IDX):, :] = input_mat[:, :(WIDTH-PATCH_IDX-1):-1, :]
-input_mirror[:PATCH_IDX, :, :] = input_mirror[(PATCH_IDX*2-1):(PATCH_IDX-1):-1, :, :]
-input_mirror[(HEIGHT+PATCH_IDX):, :, :] = input_mirror[(HEIGHT+PATCH_IDX-1):(HEIGHT-1):-1, :, :]
+input_mirror[PATCH_IDX:(HEIGHT + PATCH_IDX), PATCH_IDX:(WIDTH + PATCH_IDX), :] = input_mat[:]
+input_mirror[PATCH_IDX:(HEIGHT + PATCH_IDX), :PATCH_IDX, :] = input_mat[:, PATCH_IDX - 1::-1, :]
+input_mirror[PATCH_IDX:(HEIGHT + PATCH_IDX), (WIDTH + PATCH_IDX):, :] = input_mat[:, :(WIDTH - PATCH_IDX - 1):-1, :]
+input_mirror[:PATCH_IDX, :, :] = input_mirror[(PATCH_IDX * 2 - 1):(PATCH_IDX - 1):-1, :, :]
+input_mirror[(HEIGHT + PATCH_IDX):, :, :] = input_mirror[(HEIGHT + PATCH_IDX - 1):(HEIGHT - 1):-1, :, :]
 input_mirror_transposed = np.transpose(input_mirror, (2, 0, 1))
-
 
 # Calculate the mean of each channel for normalization
 
@@ -159,12 +157,11 @@ MEAN_ARRAY = np.ndarray(shape=(BAND,), dtype=float)
 for i in range(BAND):
     MEAN_ARRAY[i] = np.mean(input_mat[:, :, i])
 
-    
 # Collect all available patches of each class from the given image (Ignore patches of margin or unknown target)
 
 for i in range(OUTPUT_CLASSES):
     CLASSES.append([])
-
+'''
 for i in range(HEIGHT - PATCH_SIZE + 1):
     for j in range(WIDTH - PATCH_SIZE + 1):
         curr_inp = patch(i, j)  # Get current (BAND, PATCH_SIZE, PATCH_SIZE) patch
@@ -172,16 +169,26 @@ for i in range(HEIGHT - PATCH_SIZE + 1):
         if curr_tar != 0:  # Ignore patches with unknown land-cover type for the central pixel
             CLASSES[curr_tar - 1].append(curr_inp)
 
+print (40 * '#' + '\n\nCollected patches of each class are: ')
+print (130 * '-' + '\nClass\t|'),
+for i in range(OUTPUT_CLASSES):
+    print (str(i + 1) + '\t'),
+print ('\n' + 130 * '-' + '\nNum\t|'),
+for c in CLASSES:
+    print (str(len(c)) + '\t'),
+print ('\n' + 130 * '-' + '\n\n' + 40 * '#')
+'''
+
 # Add marginal patches (mirror the images for marginal extension)
 
-for i in list(range(PATCH_IDX)) + list(range(HEIGHT - PATCH_IDX, HEIGHT)):
-    for j in list(range(PATCH_IDX)) + list(range(WIDTH - PATCH_IDX, WIDTH)):
-        temp_x = patch_margin(i, j)
+for i in range(HEIGHT):
+    for j in range(WIDTH):
         temp_y = target_mat[i, j]
         if temp_y != 0:
+            temp_x = patch_margin(i, j)
             CLASSES[temp_y - 1].append(temp_x)
 
-print (40 * '#' + '\n\nCollected patches of each class are: ')
+print (40 * '#' + '\n\nCollected patches (including marginal patches) of each class are: ')
 print (130 * '-' + '\nClass\t|'),
 for i in range(OUTPUT_CLASSES):
     print (str(i + 1) + '\t'),
@@ -222,7 +229,7 @@ print ('\nTotal num of Test patches: %d\n' % len(TEST_PATCH))
 print (40 * '#')
 
 # Save the patches
-
+'''
 # 1. Training data
 file_name = 'Train_' + str(PATCH_SIZE) + str(Utils.oversample) + str(Utils.test_frac) + '.h5'
 with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as file:
@@ -237,7 +244,7 @@ with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as file:
     file.create_dataset('test_labels', data=TEST_LABELS, compression='gzip', dtype='i8')
 print ('Successfully save test data set!')
 
-'''
+
 save_as_tfrecord('Train', TRAIN_PATCH, TRAIN_LABELS)
 print 'Successfully save training data set!'
 save_as_tfrecord('Test', TEST_PATCH, TEST_LABELS)
