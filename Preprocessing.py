@@ -41,6 +41,37 @@ def patch(height_index, width_index):
     return np.array(mean_normalized_patch)
 
 
+def patch_margin(height_index, width_index):
+    """Collect marginal patches
+    
+    Returns a mean-normalized patch, the center of which
+    is at (height_index, width_index)
+
+    Inputs:
+    -- height_index: row index of the center of the image patch
+    -- width_index: column index of the center of the image patch
+
+    Outputs:
+    -- mean_normalized_patch: mean normalized patch of size (BAND, PATCH_SIZE, PATCH_SIZE)
+    whose top left corner is at (height_index, width_index)
+    """
+    input_mirror = np.zeros(((HEIGHT+PATCH_SIZE-1), (WIDTH+PATCH_SIZE-1), BAND))
+    input_mirror[PATCH_SIZE:, PATCH_SIZE:, :] = input_mat[:]
+    patch_index = int((PATCH_SIZE-1)/2)
+    
+    transpose_array = np.transpose(input_mat, (2, 0, 1))
+    
+    if height_index - patch_index
+    height_slice = slice(height_index - , height_index + int((PATCH_SIZE-1)/2))
+    width_slice = slice(width_index, width_index+PATCH_SIZE)
+    patches = transpose_array[:, height_slice, width_slice]
+    mean_normalized_patch = []
+    for i in range(patches.shape[0]):
+        mean_normalized_patch.append(patches[i] - MEAN_ARRAY[i])
+
+    return np.array(mean_normalized_patch)
+
+
 def oversample(truth, train_patch, train_labels, count):
     """
     Over-sample the classes which do not have at least
@@ -145,6 +176,16 @@ for i in range(HEIGHT - PATCH_SIZE + 1):
         curr_tar = target_mat[i + int((PATCH_SIZE - 1)/2), j + int((PATCH_SIZE - 1)/2)]  # Target of central pixel of the patch
         if curr_tar != 0:  # Ignore patches with unknown land-cover type for the central pixel
             CLASSES[curr_tar-1].append(curr_inp)
+
+            
+# Add marginal patches (mirror the images for marginal extention)
+
+for i in list(range(int((PATCH_SIZE - 1)/2)))+list(range(HEIGHT - int((PATCH_SIZE - 1)/2), HEIGHT)):
+    for j in list(range(int((PATCH_SIZE - 1)/2)))+list(range(WIDTH - int((PATCH_SIZE - 1)/2), WIDTH)):
+        temp_x = patch_margin(i, j)
+        temp_y = target_mat[i, j]
+        if temp_y != 0:
+            CLASSES[temp_y-1].append(temp_x)
 
 print (40*'#'+'\n\nCollected patches of each class are: ')
 print (130*'-'+'\nClass\t|'),
