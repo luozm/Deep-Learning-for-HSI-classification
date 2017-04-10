@@ -17,6 +17,7 @@ import h5py
 import tensorflow as tf
 from skimage import transform
 
+
 # Define functions
 
 def patch_margin(height_index, width_index):
@@ -62,7 +63,7 @@ def oversample(truth, train_patch, train_labels, count):
             shuffle(train_patch[i])
             train_patch[i] = train_patch[i][:count]
             train_labels.extend(np.full(len(train_patch[i]), i, dtype=int))
-        train_patch = np.asarray(train_patch)
+        train_patch = np.array(train_patch, dtype='float32')
         train_patch = train_patch.reshape((-1, 220, PATCH_SIZE, PATCH_SIZE))
 
     else:
@@ -71,7 +72,7 @@ def oversample(truth, train_patch, train_labels, count):
             shuffle(train_patch[i])
             tmp += train_patch[i]
             train_labels.extend(np.full(len(train_patch[i]), i, dtype=int))
-        train_patch = np.asarray(tmp)
+        train_patch = np.array(tmp, dtype='float32')
 
     return train_patch, train_labels
 
@@ -120,7 +121,7 @@ OVERSAMPLE = Utils.oversample
 
 # Scale the input between [0,1]
 
-input_mat = input_mat.astype(float)
+input_mat = input_mat.astype('float32')
 input_mat -= np.min(input_mat)
 input_mat /= np.max(input_mat)
 
@@ -132,10 +133,11 @@ input_mirror[PATCH_IDX:(HEIGHT + PATCH_IDX), (WIDTH + PATCH_IDX):, :] = input_ma
 input_mirror[:PATCH_IDX, :, :] = input_mirror[(PATCH_IDX * 2 - 1):(PATCH_IDX - 1):-1, :, :]
 input_mirror[(HEIGHT + PATCH_IDX):, :, :] = input_mirror[(HEIGHT + PATCH_IDX - 1):(HEIGHT - 1):-1, :, :]
 input_mirror_transposed = np.transpose(input_mirror, (2, 0, 1))
+input_mirror_transposed = input_mirror_transposed.astype('float32')
 
 # Calculate the mean of each channel for normalization
 
-MEAN_ARRAY = np.ndarray(shape=(BAND,), dtype=float)
+MEAN_ARRAY = np.ndarray(shape=(BAND,), dtype='float32')
 for i in range(BAND):
     MEAN_ARRAY[i] = np.mean(input_mat[:, :, i])
 
@@ -177,6 +179,8 @@ for c in range(OUTPUT_CLASSES):  # for each class
     TEST_PATCH.extend(patches_of_current_class[-test_split_size:])
     TEST_LABELS.extend(np.full(test_split_size, c, dtype=int))
 
+TEST_PATCH = np.array(TEST_PATCH, dtype='float32')
+
 print ('\nTraining patches of each class are: ')
 print (130 * '-' + '\nClass\t|'),
 for i in range(OUTPUT_CLASSES):
@@ -196,43 +200,36 @@ print (40 * '#')
 
 # Data Augmentation by rotation (0, 90, 180, 270)
 
-#training dataset
 temp_patch = []
 for i in range(3):
     for j in range(len(TRAIN_PATCH)):
-        temp_patch.append(transform.rotate(TRAIN_PATCH[j],(i+1)*90))
-TRAIN_PATCH.extend(temp_patch)
-for _ in range(3):
-    TRAIN_LABELS.extend(TRAIN_LABELS)
+        temp_patch.append(transform.rotate(TRAIN_PATCH[j], (i+1)*90))
 
-# test dataset
-temp_patch = []
-for i in range(3):
-    for j in range(len(TEST_PATCH)):
-        temp_patch.append(transform.rotate(TEST_PATCH[j],(i+1)*90))
-TEST_PATCH.extend(temp_patch)
-for _ in range(3):
-    TEST_LABELS.extend(TEST_LABELS)
+TRAIN_PATCH = np.concatenate((TRAIN_PATCH, temp_patch))
+TRAIN_PATCH = TRAIN_PATCH.astype('float32')
+TRAIN_LABELS = np.array(TRAIN_LABELS, dtype=int)
+TRAIN_LABELS = np.tile(TRAIN_LABELS, 4)
 
-print ('\nTotal num of Training patches: %d\n' % len(TRAIN_PATCH))
+print ('\nTotal num of Training patches (after augmentation): %d\n' % len(TRAIN_PATCH))
 print (40 * '#')
-print ('\nTotal num of Test patches: %d\n' % len(TEST_PATCH))
-print (40 * '#')
+
 
 # Save the patches
 
 # 1. Training data
 file_name = 'Train_' + str(PATCH_SIZE) + str(Utils.oversample) + str(Utils.test_frac) + '.h5'
+print ('Writing: ' + file_name)
 with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as file:
-    file.create_dataset('train_patch', data=TRAIN_PATCH, compression='gzip')
-    file.create_dataset('train_labels', data=TRAIN_LABELS, compression='gzip', dtype='i8')
+    file.create_dataset('train_patch', data=TRAIN_PATCH)
+    file.create_dataset('train_labels', data=TRAIN_LABELS, dtype='i8')
 print ('Successfully save training data set!')
 
 # 2. Test data
 file_name = 'Test_' + str(PATCH_SIZE) + str(Utils.oversample) + str(Utils.test_frac) + '.h5'
+print ('Writing: ' + file_name)
 with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as file:
-    file.create_dataset('test_patch', data=TEST_PATCH, compression='gzip')
-    file.create_dataset('test_labels', data=TEST_LABELS, compression='gzip', dtype='i8')
+    file.create_dataset('test_patch', data=TEST_PATCH)
+    file.create_dataset('test_labels', data=TEST_LABELS, dtype='i8')
 print ('Successfully save test data set!')
 
 '''
