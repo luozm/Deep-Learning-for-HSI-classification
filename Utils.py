@@ -31,18 +31,18 @@ bands = 220  # number of spectral channels
 # Pre-processing settings
 
 patch_size = 11  # Size of the CNN respective field
-test_frac = 0.5  # Fraction of data to be used for testing
+test_frac = 0.9  # Fraction of data to be used for testing
 
 oversample = True  # Whether use over-sample or just shuffle
-patch_class = 500  # Number of training patches of each class (if over-sample)
+patch_class = 200  # Number of training patches of each class (if over-sample)
 
 
 # model settings
 
 learning_rate = 0.01  # Initial learning rate
 max_steps = 50000  # Number of steps to run trainer
-batch_size = 50  # Batch size, must divide evenly into the dataset sizes
-
+batch_size = 500  # Batch size, must divide evenly into the dataset sizes
+model = 'cnn_test'  # Set the model type
 
 # 2D model
 
