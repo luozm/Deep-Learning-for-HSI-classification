@@ -4,6 +4,10 @@ Load the HSI data sets and split into several patches for CNN.
 @Author: lzm
 """
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
 import scipy.io as scio
 from random import shuffle
@@ -11,31 +15,9 @@ import Utils
 import os
 import h5py
 import tensorflow as tf
-
+from skimage import transform
 
 # Define functions
-
-def patch(height_index, width_index):
-    """
-    Returns a mean-normalized patch, the top left corner of which
-    is at (height_index, width_index)
-    Inputs:
-    -- height_index: row index of the top left corner of the image patch
-    -- width_index: column index of the top left corner of the image patch
-    Outputs:
-    -- mean_normalized_patch: mean normalized patch of size (BAND, PATCH_SIZE, PATCH_SIZE)
-    whose top left corner is at (height_index, width_index)
-    """
-    transpose_array = np.transpose(input_mat, (2, 0, 1))
-    height_slice = slice(height_index, height_index + PATCH_SIZE)
-    width_slice = slice(width_index, width_index + PATCH_SIZE)
-    patches = transpose_array[:, height_slice, width_slice]
-    mean_normalized_patch = []
-    for i in range(patches.shape[0]):
-        mean_normalized_patch.append(patches[i] - MEAN_ARRAY[i])
-
-    return np.array(mean_normalized_patch)
-
 
 def patch_margin(height_index, width_index):
     """Collect marginal patches
@@ -102,7 +84,7 @@ def save_as_tfrecord(name, images, labels):
         raise ValueError('Images size %d does not match label size %d.' %
                          (images.shape[0], len(labels)))
 
-    file_name = name + str(PATCH_SIZE) + str(Utils.oversample) + '.tfrecords'
+    file_name = name + str(PATCH_SIZE) + str(Utils.oversample) + str(Utils.test_frac) + '.tfrecords'
     print ('Writing: ' + file_name)
 
     with tf.python_io.TFRecordWriter(os.path.join(DATA_PATH, file_name)) as TFWriter:
@@ -161,23 +143,6 @@ for i in range(BAND):
 
 for i in range(OUTPUT_CLASSES):
     CLASSES.append([])
-'''
-for i in range(HEIGHT - PATCH_SIZE + 1):
-    for j in range(WIDTH - PATCH_SIZE + 1):
-        curr_inp = patch(i, j)  # Get current (BAND, PATCH_SIZE, PATCH_SIZE) patch
-        curr_tar = target_mat[i + PATCH_IDX, j + PATCH_IDX]  # Target of central pixel of the patch
-        if curr_tar != 0:  # Ignore patches with unknown land-cover type for the central pixel
-            CLASSES[curr_tar - 1].append(curr_inp)
-
-print (40 * '#' + '\n\nCollected patches of each class are: ')
-print (130 * '-' + '\nClass\t|'),
-for i in range(OUTPUT_CLASSES):
-    print (str(i + 1) + '\t'),
-print ('\n' + 130 * '-' + '\nNum\t|'),
-for c in CLASSES:
-    print (str(len(c)) + '\t'),
-print ('\n' + 130 * '-' + '\n\n' + 40 * '#')
-'''
 
 # Add marginal patches (mirror the images for marginal extension)
 
@@ -228,8 +193,34 @@ print (40 * '#')
 print ('\nTotal num of Test patches: %d\n' % len(TEST_PATCH))
 print (40 * '#')
 
+
+# Data Augmentation by rotation (0, 90, 180, 270)
+
+#training dataset
+temp_patch = []
+for i in range(3):
+    for j in range(len(TRAIN_PATCH)):
+        temp_patch.append(transform.rotate(TRAIN_PATCH[j],(i+1)*90))
+TRAIN_PATCH.extend(temp_patch)
+for _ in range(3):
+    TRAIN_LABELS.extend(TRAIN_LABELS)
+
+# test dataset
+temp_patch = []
+for i in range(3):
+    for j in range(len(TEST_PATCH)):
+        temp_patch.append(transform.rotate(TEST_PATCH[j],(i+1)*90))
+TEST_PATCH.extend(temp_patch)
+for _ in range(3):
+    TEST_LABELS.extend(TEST_LABELS)
+
+print ('\nTotal num of Training patches: %d\n' % len(TRAIN_PATCH))
+print (40 * '#')
+print ('\nTotal num of Test patches: %d\n' % len(TEST_PATCH))
+print (40 * '#')
+
 # Save the patches
-'''
+
 # 1. Training data
 file_name = 'Train_' + str(PATCH_SIZE) + str(Utils.oversample) + str(Utils.test_frac) + '.h5'
 with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as file:
@@ -244,9 +235,9 @@ with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as file:
     file.create_dataset('test_labels', data=TEST_LABELS, compression='gzip', dtype='i8')
 print ('Successfully save test data set!')
 
-
+'''
 save_as_tfrecord('Train', TRAIN_PATCH, TRAIN_LABELS)
-print 'Successfully save training data set!'
+print ('Successfully save training data set!')
 save_as_tfrecord('Test', TEST_PATCH, TEST_LABELS)
-print 'Successfully save test data set!'
+print ('Successfully save test data set!')
 '''
