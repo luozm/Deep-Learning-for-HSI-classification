@@ -43,7 +43,7 @@ FC2 = Utils.fc2
 LR = Utils.learning_rate
 RReLU_min = 0.1
 RReLU_max = 0.3
-REG_lambda = 0.005
+REG_lambda = 0.01
 
 
 # Build the model up to where it may be used for inference.
@@ -91,7 +91,7 @@ def cnn_3d(images, is_training):
         l_drop1 = dropout(l_fc1, Utils.drop, training=is_training, name='Dropout1')
 
     with tf.name_scope('FC2'):
-        l_fc2 = dense(l_drop1, 100, kernel_regularizer=l2_regularizer(REG_lambda),
+        l_fc2 = dense(l_drop1, 200, kernel_regularizer=l2_regularizer(REG_lambda),
 #                      activation=relu
                       )
         l_fc2 = rrelu(l_fc2, is_training)
@@ -102,7 +102,7 @@ def cnn_3d(images, is_training):
     return logits
 
 
-# Build the model up to where it may be used for inference.
+# 2D-CNN model
 def cnn_2d(images, is_training):
     """
     Build the model for 2D-CNN.
@@ -116,39 +116,57 @@ def cnn_2d(images, is_training):
 
     """
     # Build the CNN model
-    l_conv1 = conv2d(images, CONV1_FILTERS, KERNEL_SIZE1, kernel_regularizer=l2_regularizer(REG_lambda),
-                            strides=STRIDE_CONV1, activation=None, name='Conv1')
-    l_conv1 = rrelu(l_conv1, is_training)
-    
+    l_conv1 = conv2d(images, CONV1_FILTERS, KERNEL_SIZE1,
+                            strides=STRIDE_CONV1, activation=relu, name='Conv1')
+
     l_maxpool1 = max_pooling2d(l_conv1, POOL_SIZE1, POOL_SIZE1,
                                padding='same', name='Maxpool1')
 
-    l_conv2 = conv2d(l_maxpool1, CONV2_FILTERS, KERNEL_SIZE2, kernel_regularizer=l2_regularizer(REG_lambda),
-                            strides=STRIDE_CONV2, activation=None, name='Conv2')
-    l_conv2 = rrelu(l_conv2, is_training)
+    l_conv2 = conv2d(l_maxpool1, CONV2_FILTERS, KERNEL_SIZE2,
+                            strides=STRIDE_CONV2, activation=relu, name='Conv2')
 
     l_maxpool2 = max_pooling2d(l_conv2, POOL_SIZE2, POOL_SIZE2,
                                padding='same', name='Maxpool2')
 
     l_flatten = flatten(l_maxpool2, scope='Flatten')
 
-    l_fc1 = dense(l_flatten, FC1, activation=None, kernel_regularizer=l2_regularizer(REG_lambda), name='Fc1')
-    
-    l_fc1 = rrelu(l_fc1, is_training)
-    
+    l_fc1 = dense(l_flatten, FC1, activation=relu, name='Fc1')
+
     l_drop = dropout(l_fc1, DROP_RATE, training=is_training,
                      name='Dropout')
 
-    l_fc2 = dense(l_drop, FC2, activation=None, kernel_regularizer=l2_regularizer(REG_lambda), name='Fc2')
-    
-    l_fc2 = rrelu(l_fc2, is_training)
-     
-    l_drop2 = dropout(l_fc2, DROP_RATE, training=is_training,
-                     name='Dropout')
+    l_fc2 = dense(l_drop, FC2, activation=relu, name='Fc2')
 
-    logits = dense(l_drop2, NUM_CLASSES, name='Output')
+    logits = dense(l_fc2, NUM_CLASSES, name='Output')
 
     return logits
+
+
+def cnn_test(images, is_training):
+    # Build the CNN model
+    l_conv1 = conv2d(images, 10, [7, 7],
+                            strides=[1, 1], activation=relu, name='Conv1')
+
+    l_flatten = flatten(l_conv1, scope='Flatten')
+
+    logits = dense(l_flatten, NUM_CLASSES, name='Output')
+
+    return logits
+
+
+# Build the model up to where it may be used for inference.
+def inference(model, images, is_training):
+    if model == 'cnn_2d':
+        logits = cnn_2d(images, is_training)
+        return logits
+    elif model == 'cnn_3d':
+        logits = cnn_3d(images, is_training)
+        return logits
+    elif model == 'cnn_test':
+        logits = cnn_test(images, is_training)
+        return logits
+    else:
+        print('Cannot find the model, plz check your spell.')
 
 
 # Define the loss function
