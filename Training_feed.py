@@ -82,8 +82,7 @@ with tf.Graph().as_default():
         is_training = tf.placeholder(tf.bool, name='is-training')  # used for dropout
 
     # Build a Graph that computes predictions from the inference model.
-    LOGITS = models.cnn_2d(x_placeholder, is_training)
-#    LOGITS = models.cnn_3d(x_placeholder, is_training)
+    LOGITS = models.inference(Utils.model, x_placeholder, is_training)
 
     # Add to the Graph the Ops for loss calculation.
     LOSS = models.loss(LOGITS, y_placeholder)
@@ -148,18 +147,21 @@ with tf.Graph().as_default():
                 _, summary_str = sess.run([EVAL, MERGE], feed_dict=feed_dict(False, Test_data))
                 test_summary_writer.add_summary(summary_str, (step+1))
 
-            # Save a checkpoint and evaluate the model periodically.
+            # Evaluate the model periodically.
             if (step+1) % 5000 == 0 or (step+1) == Utils.max_steps:
-                saver.save(sess, os.path.join(
-                    Utils.model_path,
-                    '2D-CNN/2D-CNN-'+str(Utils.patch_size)+'.ckpt'),
-                    global_step=step+1)
-
                 # Evaluate against the training & test sets.
                 print('Training Data Eval:')
                 eval_full_epoch(Training_data)
                 print('Test Data Eval:')
                 eval_full_epoch(Test_data)
+
+            # Save a checkpoint
+            if (step+1) == Utils.max_steps:
+                saver.save(sess, os.path.join(
+                    Utils.model_path,
+                    '3D-CNN/3D-CNN-'+str(Utils.patch_size)+'.ckpt'),
+                    global_step=step+1)
+
 
         train_summary_writer.close()
         test_summary_writer.close()
