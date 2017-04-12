@@ -271,28 +271,33 @@ def unet(input_shape):
 def cnn_3d(input_shape):
 
     model = Sequential()
-    model.add(Conv3D(10, kernel_size=(3, 3, 10),
-                     strides=(1, 1, 5),
-                     padding='valid',
-                     kernel_regularizer=l2(REG_lambda),
-                     input_shape=input_shape))
-    model.add(BatchNormalization())
+    model.add(Conv3D(16, kernel_size=(3, 3, 20), strides=(1, 1, 10), padding='valid', kernel_regularizer=l2(REG_lambda), input_shape=input_shape))
+#    model.add(BatchNormalization())
     model.add(Activation(activation='relu'))
-    model.add(MaxPooling3D(pool_size=pool_size))
-    model.add(Conv3D(40, kernel_size=(3, 3, 10),
-                     strides=(1, 1, 2),
-                     padding='valid',
-                     kernel_regularizer=l2(REG_lambda)))
-    model.add(BatchNormalization())
+    model.add(Conv3D(16, kernel_size=(3, 3, 3), strides=(1, 1, 1), padding='same', kernel_regularizer=l2(REG_lambda)))
+#    model.add(BatchNormalization())
     model.add(Activation(activation='relu'))
-    model.add(MaxPooling3D(pool_size=pool_size))
+    model.add(MaxPooling3D(pool_size=(2, 2, 3)))
+
+    model.add(Conv3D(32, kernel_size=(3, 3, 3), strides=(1, 1, 1), padding='same', kernel_regularizer=l2(REG_lambda)))
+#    model.add(BatchNormalization())
+    model.add(Activation(activation='relu'))
+    model.add(Conv3D(32, kernel_size=(3, 3, 3), strides=(1, 1, 1), padding='same', kernel_regularizer=l2(REG_lambda)))
+#    model.add(BatchNormalization())
+    model.add(Activation(activation='relu'))
+    model.add(MaxPooling3D(pool_size=(2, 2, 3)))
+
+    model.add(Conv3D(64, kernel_size=(2, 2, 2), strides=(1, 1, 1), padding='same', kernel_regularizer=l2(REG_lambda)))
+#    model.add(BatchNormalization())
+    model.add(Activation(activation='relu'))
+    model.add(Conv3D(64, kernel_size=(2, 2, 2), strides=(1, 1, 1), padding='same', kernel_regularizer=l2(REG_lambda)))
+#    model.add(BatchNormalization())
+    model.add(Activation(activation='relu'))
+    model.add(MaxPooling3D(pool_size=(2, 2, 2)))
+
     model.add(Flatten())
-    model.add(Dense(200))
-    model.add(BatchNormalization())
-    model.add(Activation(activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(200))
-    model.add(BatchNormalization())
+    model.add(Dense(128))
+#    model.add(BatchNormalization())
     model.add(Activation(activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes, activation='softmax'))
@@ -309,10 +314,7 @@ def cnn_3d(input_shape):
 def cnn_2d(input_shape):
 
     model = Sequential()
-    model.add(Conv2D(100, (3, 3),
-                     padding='valid',
-                     activation='relu',
-                     input_shape=input_shape))
+    model.add(Conv2D(100, (3, 3), padding='valid', activation='relu', input_shape=input_shape))
     model.add(MaxPooling2D(pool_size=pool_size))
     model.add(Conv2D(200, (3, 3), padding='valid', activation='relu'))
     model.add(MaxPooling2D(pool_size=pool_size))
@@ -378,13 +380,13 @@ print('model.summary:')
 model.summary()
 
 # Visualizing in TensorBoard
-tb = TensorBoard(log_dir=Utils.graph_path, histogram_freq=0, write_graph=True, write_images=False)
+#tb = TensorBoard(log_dir=Utils.graph_path, histogram_freq=0, write_graph=True, write_images=False)
 
 # Training the model
 History = model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch,
                     verbose=1,
                     validation_data=(X_test, Y_test),
-                    callbacks=[tb]
+#                    callbacks=[tb]
                     )
 
 # Evaluation
