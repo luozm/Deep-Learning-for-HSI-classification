@@ -163,19 +163,16 @@ print ('\n' + 130 * '-' + '\n\n' + 40 * '#')
 
 # Generate the matrix of labels
 TRAIN_LABELS = generate_label_matrix(train_labels, num_train_samples)
-TEST_LABELS = generate_label_matrix(test_labels, num_samples - num_train_samples)
-
 TRAIN_LABELS_ONE = generate_label_matrix_one(train_labels)
 TEST_LABELS_ONE = generate_label_matrix_one(test_labels)
 
 print('\nTotal num of Training labels: %d\n' % TRAIN_LABELS.shape[0])
 print(40 * '#')
-print('\nTotal num of Test labels: %d\n' % TEST_LABELS.shape[0])
+print('\nTotal num of Test labels: %d\n' % (num_samples - num_train_samples))
 print(40 * '#')
 
 
 # Save the patches
 save_file(input_mat_pca, TRAIN_LABELS, 'Train_fcn_all_', 'train')
-save_file(input_mat_pca, TEST_LABELS, 'Test_fcn_all_', 'test')
 save_file(input_mat_pca, TRAIN_LABELS_ONE, 'Train_fcn_all_one_', 'train')
 save_file(input_mat_pca, TEST_LABELS_ONE, 'Test_fcn_all_one_', 'test')
