@@ -14,9 +14,34 @@ from random import shuffle
 import Utils
 import os
 import h5py
+from sklearn.decomposition import PCA, KernelPCA
 
 
 # Define functions
+
+# Dimensionality Reduction by PCA or KernelPCA
+def dr_pca(images, is_kernel=False, kernel='linear', num_components=3):
+    # Reshape 3D array to 2D
+    images_2d = np.reshape(images, (-1, images.shape[-1]))
+
+    if is_kernel:  # Using KernelPCA
+        kpca = KernelPCA(n_components=num_components, kernel=kernel)
+        images_pca = kpca.fit_transform(images_2d)
+        # Compute variance ratio
+        explained_variance = np.var(images_pca, axis=0)
+        explained_variance_ratio = explained_variance / np.sum(explained_variance)
+        print('Explained Variance Ratio: '+str(explained_variance_ratio))
+    else:  # Using PCA
+        pca = PCA(n_components=num_components)
+        images_pca = pca.fit_transform(images_2d)
+        explained_variance_ratio = pca.explained_variance_ratio_
+        print('Explained Variance Ratio: '+str(explained_variance_ratio))
+
+    # convert input size to suit the chosen model
+    images = np.reshape(images_pca, (images.shape[0], images.shape[1], num_components))
+
+    return images, explained_variance_ratio
+
 
 # Generate the matrix of labels
 def generate_label_matrix(labels, num):
@@ -27,26 +52,48 @@ def generate_label_matrix(labels, num):
             row, col = sample
             labels_matrix[idx, row, col] = class_idx + 1
             idx += 1
+    labels_matrix = np.array(labels_matrix, dtype='uint8')
+    return labels_matrix
+
+
+# Generate the matrix of labels (all in one matrix)
+def generate_label_matrix_one(labels):
+    labels_matrix = np.zeros((1, HEIGHT, WIDTH), dtype=int)
+    for class_idx in range(OUTPUT_CLASSES):
+        for _, sample in enumerate(labels[class_idx]):
+            row, col = sample
+            labels_matrix[0, row, col] = class_idx + 1
+    labels_matrix = np.array(labels_matrix, dtype='uint8')
     return labels_matrix
 
 
 # Make a test split
-def split(labels, num_classes):
-    train_labels, test_labels = [], []
+def split(labels, num_classes, test_frac):
+    train_y, test_y = [], []
 
     for class_idx in range(num_classes):  # for each class
         class_population = len(labels[class_idx])
-        test_split_size = int(class_population * TEST_FRAC)
+        test_split_size = int(class_population * test_frac)
         patches_of_current_class = labels[class_idx]
 
         # Randomly shuffle patches in the class
         shuffle(patches_of_current_class)
 
         # Make training and test splits
-        train_labels.append(patches_of_current_class[:-test_split_size])
-        test_labels.append(patches_of_current_class[-test_split_size:])
+        train_y.append(patches_of_current_class[:-test_split_size])
+        test_y.append(patches_of_current_class[-test_split_size:])
 
-    return train_labels, test_labels
+    return train_y, test_y
+
+
+# Save the dataset to files
+def save_file(images, labels, file_name, variable_name):
+    file_name = file_name + str(Utils.test_frac) + '.h5'
+    print('Writing: ' + file_name)
+    with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as savefile:
+        savefile.create_dataset(variable_name + '_patch', data=images)
+        savefile.create_dataset(variable_name + '_labels', data=labels, dtype='uint8')
+    print('Successfully save ' + variable_name + ' data set!')
 
 
 # Load data sets
@@ -64,12 +111,17 @@ PATCH_SIZE = Utils.patch_size
 OUTPUT_CLASSES = int(target_mat.max())
 TEST_FRAC = Utils.test_frac
 CLASSES = []
+num_samples, num_train_samples = 0, 0
 
 # Scale the input between [0,1]
 
 input_mat = input_mat.astype('float32')
 input_mat -= np.min(input_mat)
 input_mat /= np.max(input_mat)
+
+
+# Dimensionality Reduction
+input_mat_pca, Variance_ratio = dr_pca(input_mat, False, num_components=3)
 
 
 # Collect labels from the given image(Ignore 0 label patches)
@@ -84,7 +136,6 @@ for i in range(HEIGHT):
         if temp_y != 0:
             CLASSES[temp_y - 1].append([i, j])
 
-num_samples = 0
 print(40 * '#' + '\n\nCollected labels of each class are: ')
 print(130 * '-' + '\nClass\t|', end='')
 for i in range(OUTPUT_CLASSES):
@@ -97,9 +148,8 @@ print('\n' + 130 * '-' + '\n\n' + 40 * '#')
 
 
 # Make a test split
-train_labels, test_labels = split(CLASSES, OUTPUT_CLASSES)
+train_labels, test_labels = split(CLASSES, OUTPUT_CLASSES, TEST_FRAC)
 
-num_train_samples = 0
 print ('\nTraining labels of each class are: ')
 print (130 * '-' + '\nClass\t|', end='')
 for i in range(OUTPUT_CLASSES):
@@ -115,25 +165,17 @@ print ('\n' + 130 * '-' + '\n\n' + 40 * '#')
 TRAIN_LABELS = generate_label_matrix(train_labels, num_train_samples)
 TEST_LABELS = generate_label_matrix(test_labels, num_samples - num_train_samples)
 
+TRAIN_LABELS_ONE = generate_label_matrix_one(train_labels)
+TEST_LABELS_ONE = generate_label_matrix_one(test_labels)
+
 print('\nTotal num of Training labels: %d\n' % TRAIN_LABELS.shape[0])
 print(40 * '#')
 print('\nTotal num of Test labels: %d\n' % TEST_LABELS.shape[0])
 print(40 * '#')
 
+
 # Save the patches
-
-# 1. Training data
-file_name = 'Train_fcn_all_' + str(Utils.test_frac) + '.h5'
-print('Writing: ' + file_name)
-with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as savefile:
-    savefile.create_dataset('train_patch', data=input_mat)
-    savefile.create_dataset('train_labels', data=TRAIN_LABELS, dtype='i8')
-print('Successfully save training data set!')
-
-# 2. Test data
-file_name = 'Test_fcn_all_' + str(Utils.test_frac) + '.h5'
-print('Writing: ' + file_name)
-with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as savefile:
-    savefile.create_dataset('test_patch', data=input_mat)
-    savefile.create_dataset('test_labels', data=TEST_LABELS, dtype='i8')
-print('Successfully save test data set!')
+save_file(input_mat_pca, TRAIN_LABELS, 'Train_fcn_all_', 'train')
+save_file(input_mat_pca, TEST_LABELS, 'Test_fcn_all_', 'test')
+save_file(input_mat_pca, TRAIN_LABELS_ONE, 'Train_fcn_all_one_', 'train')
+save_file(input_mat_pca, TEST_LABELS_ONE, 'Test_fcn_all_one_', 'test')
