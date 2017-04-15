@@ -36,7 +36,7 @@ def read_file(directory, value):
 # Loading data from preprocessed files
 def load_data():
     # load training data
-    directory = os.path.join(Utils.data_path, 'Train_fcn_all_one_' + str(Utils.test_frac) + '.h5')
+    directory = os.path.join(Utils.data_path, 'Train_fcn_all_' + str(Utils.test_frac) + '.h5')
     images, train_labels = read_file(directory, 'train')
     # load test data
     directory = os.path.join(Utils.data_path, 'Test_fcn_all_one_' + str(Utils.test_frac) + '.h5')
@@ -235,7 +235,7 @@ def unet(input_shape):
     conv5 = Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(pool4)
     conv5 = Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv5)
 
-    up6 = merge([UpSampling2D(size=(2, 2))(conv5), conv4], mode='concat', concat_axis=3)
+    up6 = concatenate([UpSampling2D(size=(2, 2))(conv5), conv4], axis=3)
     conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', border_mode='same')(up6)
     conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', border_mode='same')(conv6)
 
@@ -255,7 +255,7 @@ def unet(input_shape):
     conv10 = Conv2D(nb_classes, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(deconv10)
     conv10 = Conv2D(nb_classes, kernel_size=(3, 3), strides=(1, 1), padding='same')(conv10)
 
-    model = Model(input=inputs, output=conv10)
+    model = Model(inputs=inputs, outputs=conv10)
     adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 
     model.compile(loss=softmax_sparse_crossentropy_ignoring_first_label,
@@ -267,8 +267,8 @@ def unet(input_shape):
 # Global settings
 model_name = 'fcn_2d'
 nb_classes = Utils.classes
-batch_size = 16
-nb_epoch = 200
+batch_size = 32
+nb_epoch = 100
 # number of convolutional filters to use
 nb_filters = 32
 # size of pooling area for max pooling
@@ -296,19 +296,14 @@ model.summary()
 
 
 # Visualizing in TensorBoard
-#tb = TensorBoard(log_dir=Utils.graph_path, histogram_freq=0, write_graph=True, write_images=False)
+tb = TensorBoard(log_dir=Utils.graph_path, histogram_freq=0, write_graph=True, write_images=False)
 
 
 # Training the model
-#History = model.fit(X_train, Y_train, batch_size=8, epochs=nb_epoch,
-#                    verbose=1,
-#                    validation_data=(X_test, Y_test),
-#                    callbacks=[tb]
-#                    )
 
-X = X.reshape((1, X.shape[0], X.shape[1], X.shape[2]))
-
-History = model.fit(X, Y_train, batch_size=1, epochs=nb_epoch,
+X_re = np.reshape(X, (1, X.shape[0], X.shape[1], X.shape[2]))
+'''
+History = model.fit(X_re, Y_train, batch_size=1, epochs=nb_epoch,
                     verbose=1,
                     validation_data=(X, Y_test),
 #                    callbacks=[tb]
@@ -319,57 +314,62 @@ History = model.fit_generator(
     generate_batches(X, Y_train, batch_size),
     steps_per_epoch=Y_train.shape[0]//batch_size,
     epochs=nb_epoch,
-#    validation_data=generate_batches(X, Y_test, batch_size),
-#    validation_steps=Y_test.shape[0]//batch_size,
-#    callbacks=[tb]
-#    workers=10,
-#    pickle_safe=True
+    validation_data=(X_re, Y_test),
+    callbacks=[tb],
+    verbose=1
 )
-'''
+
 
 # Evaluation
-#score = model.evaluate_generator(generate_batches(X, Y_test, batch_size), steps=Y_test.shape[0]//batch_size)
+score = model.evaluate(X_re, Y_test, verbose=0)
 
-#print('Test score:', score[0])
-#print('Test accuracy:', score[1])
+print('Final Result are as follow: ')
+print('Test score:', score[0])
+print('Test accuracy:', score[1])
 
 # Visualizing losses and accuracy
-#visual_result(History)
+visual_result(History)
 
-
-#X = X.reshape(1, X.shape[0], X.shape[1], X.shape[2])
-y_pred = model.predict(X)
-y_class = np.argmax(y_pred, axis=-1)
-y_class = y_class.reshape(X.shape[1:3])
-#y_pred_2d =
-
-'''
-# Confusion Matrix
-print('Classification Report:')
-report = classification_report(np.argmax(Y_test, axis=-1), y_pred)
-print(report)
-print('Confusion Matrix:')
-confusion_mtx = confusion_matrix(np.argmax(Y_test, axis=-1), y_pred)
-print(confusion_mtx)
-'''
+# Predictions
+y_pred = model.predict(X_re)
+y_pred_class = np.argmax(y_pred, axis=-1)
+y_pred_class = y_pred_class.reshape(X.shape[:2])
+y_pred_class += 1
+y_pred_class_all = np.array(y_pred_class)
 
 output_image = scio.loadmat(os.path.join(Utils.data_path, Utils.data_file + '_gt.mat'))[Utils.data_name + '_gt']
-y_class += 1
-y_class_all = np.array(y_class)
-y_class[output_image == 0] = 0
 
-# Save result
+y_pred_class[output_image == 0] = 0
+
+# Confusion Matrix
+y_pred_2d = np.reshape(y_pred_class, -1)
+y_true_2d = np.reshape(output_image, -1)
+y_true_2d_test = np.reshape(Y_test, -1)
+
+print('Classification Report:')
+#report = classification_report(y_true_2d, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
+report_test = classification_report(y_true_2d_test, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
+#print(report)
+print(report_test)
+
+print('Confusion Matrix:')
+#confusion_mtx = confusion_matrix(y_true_2d, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
+confusion_mtx_test = confusion_matrix(y_true_2d_test, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
+#print(confusion_mtx)
+print(confusion_mtx_test)
+
+# Save result image
 ground_truth = spectral.imshow(classes=output_image, figsize=(5, 5))
 plt.savefig('gt.png')
 
-predict_image = spectral.imshow(classes=y_class, figsize=(5, 5))
+predict_image = spectral.imshow(classes=y_pred_class, figsize=(5, 5))
 plt.savefig('predict.png')
 
-predict_image_all = spectral.imshow(classes=y_class_all, figsize=(5, 5))
+predict_image_all = spectral.imshow(classes=y_pred_class_all, figsize=(5, 5))
 plt.savefig('predict_all.png')
 
 # Save model
-#model.save(os.path.join(Utils.model_path, '-FCN-ALL-'+str(score[1])+'.h5'))
+model.save(os.path.join(Utils.model_path, '-FCN-ALL-'+str(score[1])+'.h5'))
 #del model
 
 # Load model
