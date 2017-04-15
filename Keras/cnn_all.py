@@ -13,16 +13,17 @@ from keras.models import Sequential, Model, load_model
 from keras.layers import Dense, Dropout, Activation, Flatten, Input, merge, Reshape
 from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Conv3D, MaxPooling3D, Conv2DTranspose
 from keras.regularizers import l1, l1_l2, l2
+from keras.layers.merge import concatenate
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
 from keras import backend as K
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA, KernelPCA
 from sklearn.metrics import classification_report, confusion_matrix
 from keras.callbacks import TensorBoard
 import scipy.io as scio
 import spectral
+
 
 # Reading data from files
 def read_file(directory, value):
@@ -35,34 +36,21 @@ def read_file(directory, value):
 # Loading data from preprocessed files
 def load_data():
     # load training data
-    directory = os.path.join(Utils.data_path, 'Train_fcn_all_' + str(Utils.test_frac) + '.h5')
-    train_images, train_labels = read_file(directory, 'train')
+    directory = os.path.join(Utils.data_path, 'Train_fcn_all_one_' + str(Utils.test_frac) + '.h5')
+    images, train_labels = read_file(directory, 'train')
     # load test data
-    directory = os.path.join(Utils.data_path, 'Test_fcn_all_' + str(Utils.test_frac) + '.h5')
+    directory = os.path.join(Utils.data_path, 'Test_fcn_all_one_' + str(Utils.test_frac) + '.h5')
     _, test_labels = read_file(directory, 'test')
 
     train_labels = np.reshape(train_labels, (train_labels.shape[0], train_labels.shape[1],  train_labels.shape[2], 1))
     test_labels = np.reshape(test_labels, (test_labels.shape[0], test_labels.shape[1],  test_labels.shape[2], 1))
 
-    # PCA
-    train_images_2d = np.reshape(train_images, (-1, train_images.shape[-1]))
-#    kpca = KernelPCA(n_components=3, kernel='linear')
-    pca = PCA(n_components=3)
-    train_images_pca = pca.fit_transform(train_images_2d)
-#    print(pca.explained_variance_ratio_)
-    # convert input size to suit the chosen model
-    images = np.reshape(train_images_pca, (train_images.shape[0], train_images.shape[1], 3))
-#    train_images_kpca = kpca.fit_transform(train_images_2d)
-#    explained_variance = np.var(train_images_kpca, axis=0)
-#    explained_variance_ratio = explained_variance / np.sum(explained_variance)
-#    print(explained_variance_ratio)
-
     if model_name == 'fcn_3d':
-        images = np.reshape(train_images_pca, (train_images.shape[0], train_images.shape[1], 3, 1))
-        input_size = (train_images.shape[1], train_images.shape[2], 3, 1)
+        images = np.reshape(images, (images.shape[0], images.shape[1], images.shape[2], 1))
+        input_size = (images.shape[1], images.shape[2], images.shape[2], 1)
 #    test_images = np.reshape(test_images, (1, test_images.shape[0], test_images.shape[1], test_images.shape[2], 1))
     else:
-        input_size = (train_images.shape[0], train_images.shape[1], 3)
+        input_size = (images.shape[0], images.shape[1], images.shape[2])
 
     return images, train_labels, test_labels, input_size
 #    return train_images, train_labels, input_size
@@ -184,26 +172,33 @@ def fcn_3d(input_shape):
 def fcn_2d(input_shape):
     inputs = Input(input_shape)
 
-    conv1 = Conv2D(8, kernel_size=(3, 3), strides=(1, 1), activation='relu')(inputs)
-    pool1 = MaxPooling2D(pool_size=(3, 3), strides=(3, 3))(conv1)
+    conv1 = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), kernel_regularizer=l2(REG_lambda))(inputs)
+#    bn1 = BatchNormalization()(conv1)
+    act1 = Activation('relu')(conv1)
+    pool1 = MaxPooling2D(pool_size=(3, 3), strides=(3, 3))(act1)
 
-    conv2 = Conv2D(32, kernel_size=(6, 6), strides=(1, 1), activation='relu')(pool1)
-    pool2 = MaxPooling2D(pool_size=(3, 3), strides=(3, 3))(conv2)
+    conv2 = Conv2D(32, kernel_size=(6, 6), strides=(1, 1), kernel_regularizer=l2(REG_lambda))(pool1)
+#    bn2 = BatchNormalization()(conv2)
+    act2 = Activation('relu')(conv2)
+    pool2 = MaxPooling2D(pool_size=(3, 3), strides=(3, 3))(act2)
 
-    conv3 = Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu')(pool2)
-    pool3 = MaxPooling2D(pool_size=(3, 3), strides=(3, 3))(conv3)
-
-#    reshape = Reshape((4, 4, 128))(pool3)
+    conv3 = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), kernel_regularizer=l2(REG_lambda))(pool2)
+#    bn3 = BatchNormalization()(conv3)
+    act3 = Activation('relu')(conv3)
+    pool3 = MaxPooling2D(pool_size=(3, 3), strides=(3, 3))(act3)
 
     up1 = UpSampling2D(size=(3, 3))(pool3)
-    deconv1 = Conv2DTranspose(32, 3, activation='relu')(up1)
+    deconv1 = Conv2DTranspose(32, 3)(up1)
+    act4 = Activation('relu')(deconv1)
 
-    up2 = UpSampling2D(size=(3, 3))(deconv1)
-    deconv2 = Conv2DTranspose(8, 6, activation='relu')(up2)
+    up2 = UpSampling2D(size=(3, 3))(act4)
+    deconv2 = Conv2DTranspose(16, 6)(up2)
+    act5 = Activation('relu')(deconv2)
 
-    up3 = UpSampling2D(size=(3, 3))(deconv2)
+    up3 = UpSampling2D(size=(3, 3))(act5)
     deconv3 = Conv2DTranspose(nb_classes, 3)(up3)
-    deconv4 = Conv2DTranspose(nb_classes, 3)(deconv3)
+    act6 = Activation('relu')(deconv3)
+    deconv4 = Conv2DTranspose(nb_classes, 3)(act6)
 
     model = Model(inputs=inputs, outputs=deconv4)
     adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
@@ -217,41 +212,55 @@ def fcn_2d(input_shape):
 # U-net model
 def unet(input_shape):
     inputs = Input(input_shape)
-    conv1 = Conv2D(32, 3, activation='relu', padding='same')(inputs)
-    conv1 = Conv2D(32, 3, activation='relu', padding='same')(conv1)
+    conv0 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(inputs)
+    conv0 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv0)
+    conv0 = Conv2D(32, kernel_size=(2, 2), strides=(1, 1), activation='relu')(conv0)
+
+    conv1 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv0)
+    conv1 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
 
-    conv2 = Conv2D(64, 3, activation='relu', padding='same')(pool1)
-    conv2 = Conv2D(64, 3, activation='relu', padding='same')(conv2)
+    conv2 = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(pool1)
+    conv2 = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv2)
     pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
 
-    conv3 = Conv2D(128, 3, activation='relu', padding='same')(pool2)
-    conv3 = Conv2D(128, 3, activation='relu', padding='same')(conv3)
+    conv3 = Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(pool2)
+    conv3 = Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv3)
     pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
 
-    conv4 = Conv2D(256, 3, activation='relu', padding='same')(pool3)
-    conv4 = Conv2D(256, 3, activation='relu', padding='same')(conv4)
+    conv4 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(pool3)
+    conv4 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv4)
+    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
 
-    up5 = merge([UpSampling2D(size=(2, 2))(conv4), conv3], mode='concat', concat_axis=1)
-    conv5 = Conv2D(128, 3, activation='relu', padding='same')(up5)
-    conv5 = Conv2D(128, 3, activation='relu', padding='same')(conv5)
+    conv5 = Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(pool4)
+    conv5 = Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv5)
 
-    up6 = merge([UpSampling2D(size=(2, 2))(conv5), conv2], mode='concat', concat_axis=1)
-    conv6 = Conv2D(64, 3, activation='relu', padding='same')(up6)
-    conv6 = Conv2D(64, 3, activation='relu', padding='same')(conv6)
+    up6 = merge([UpSampling2D(size=(2, 2))(conv5), conv4], mode='concat', concat_axis=3)
+    conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', border_mode='same')(up6)
+    conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', border_mode='same')(conv6)
 
-    up7 = merge([UpSampling2D(size=(2, 2))(conv6), conv1], mode='concat', concat_axis=1)
-    conv7 = Conv2D(32, 3, activation='relu', padding='same')(up7)
-    conv7 = Conv2D(32, 3, activation='relu', padding='same')(conv7)
+    up7 = concatenate([UpSampling2D(size=(2, 2))(conv6), conv3], axis=3)
+    conv7 = Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(up7)
+    conv7 = Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv7)
 
-    conv8 = Conv2D(nb_classes, 1, activation='softmax')(conv7)
+    up8 = concatenate([UpSampling2D(size=(2, 2))(conv7), conv2], axis=3)
+    conv8 = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(up8)
+    conv8 = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv8)
 
-    model = Model(input=inputs, output=conv8)
+    up9 = concatenate([UpSampling2D(size=(2, 2))(conv8), conv1], axis=3)
+    conv9 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(up9)
+    conv9 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv9)
+
+    deconv10 = Conv2DTranspose(nb_classes, kernel_size=(2, 2), strides=(1, 1), activation='relu')(conv9)
+    conv10 = Conv2D(nb_classes, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(deconv10)
+    conv10 = Conv2D(nb_classes, kernel_size=(3, 3), strides=(1, 1), padding='same')(conv10)
+
+    model = Model(input=inputs, output=conv10)
     adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 
-    model.compile(loss='categorical_crossentropy',
+    model.compile(loss=softmax_sparse_crossentropy_ignoring_first_label,
                   optimizer=adam,
-                  metrics=['accuracy'])
+                  metrics=[sparse_accuracy])
     return model
 
 
@@ -259,7 +268,7 @@ def unet(input_shape):
 model_name = 'fcn_2d'
 nb_classes = Utils.classes
 batch_size = 16
-nb_epoch = 50
+nb_epoch = 200
 # number of convolutional filters to use
 nb_filters = 32
 # size of pooling area for max pooling
@@ -267,7 +276,7 @@ pool_size = 2
 # convolution kernel size
 kernel_size = 3
 # regularization rate
-REG_lambda = 0.01
+REG_lambda = 0.02
 
 
 # fix random seed for reproducibility
@@ -279,14 +288,16 @@ X, Y_train, Y_test, Input_shape = load_data()
 
 
 # Choose a model to fit
-#model = fcn_3d(Input_shape)
-model = fcn_2d(Input_shape)
+model = unet(Input_shape)
+#model = fcn_2d(Input_shape)
 
 print('model.summary:')
 model.summary()
 
+
 # Visualizing in TensorBoard
 #tb = TensorBoard(log_dir=Utils.graph_path, histogram_freq=0, write_graph=True, write_images=False)
+
 
 # Training the model
 #History = model.fit(X_train, Y_train, batch_size=8, epochs=nb_epoch,
@@ -295,7 +306,15 @@ model.summary()
 #                    callbacks=[tb]
 #                    )
 
+X = X.reshape((1, X.shape[0], X.shape[1], X.shape[2]))
 
+History = model.fit(X, Y_train, batch_size=1, epochs=nb_epoch,
+                    verbose=1,
+                    validation_data=(X, Y_test),
+#                    callbacks=[tb]
+                    )
+
+'''
 History = model.fit_generator(
     generate_batches(X, Y_train, batch_size),
     steps_per_epoch=Y_train.shape[0]//batch_size,
@@ -306,25 +325,26 @@ History = model.fit_generator(
 #    workers=10,
 #    pickle_safe=True
 )
-
+'''
 
 # Evaluation
-score = model.evaluate_generator(generate_batches(X, Y_test, batch_size), steps=Y_test.shape[0]//batch_size)
+#score = model.evaluate_generator(generate_batches(X, Y_test, batch_size), steps=Y_test.shape[0]//batch_size)
 
-print('Test score:', score[0])
-print('Test accuracy:', score[1])
+#print('Test score:', score[0])
+#print('Test accuracy:', score[1])
 
 # Visualizing losses and accuracy
 #visual_result(History)
 
-# Confusion Matrix
-X = X.reshape(1, X.shape[0], X.shape[1], X.shape[2])
+
+#X = X.reshape(1, X.shape[0], X.shape[1], X.shape[2])
 y_pred = model.predict(X)
 y_class = np.argmax(y_pred, axis=-1)
 y_class = y_class.reshape(X.shape[1:3])
 #y_pred_2d =
 
 '''
+# Confusion Matrix
 print('Classification Report:')
 report = classification_report(np.argmax(Y_test, axis=-1), y_pred)
 print(report)
@@ -349,7 +369,7 @@ predict_image_all = spectral.imshow(classes=y_class_all, figsize=(5, 5))
 plt.savefig('predict_all.png')
 
 # Save model
-model.save(os.path.join(Utils.model_path, '-FCN-ALL-'+str(score[1])+'.h5'))
+#model.save(os.path.join(Utils.model_path, '-FCN-ALL-'+str(score[1])+'.h5'))
 #del model
 
 # Load model
