@@ -20,7 +20,7 @@ from keras import backend as K
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, EarlyStopping
 import scipy.io as scio
 import spectral
 
@@ -236,8 +236,8 @@ def unet(input_shape):
     conv5 = Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv5)
 
     up6 = concatenate([UpSampling2D(size=(2, 2))(conv5), conv4], axis=3)
-    conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', border_mode='same')(up6)
-    conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', border_mode='same')(conv6)
+    conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(up6)
+    conv6 = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv6)
 
     up7 = concatenate([UpSampling2D(size=(2, 2))(conv6), conv3], axis=3)
     conv7 = Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(up7)
@@ -268,7 +268,7 @@ def unet(input_shape):
 model_name = 'fcn_2d'
 nb_classes = Utils.classes
 batch_size = 32
-nb_epoch = 100
+nb_epoch = 90
 # number of convolutional filters to use
 nb_filters = 32
 # size of pooling area for max pooling
@@ -298,6 +298,8 @@ model.summary()
 # Visualizing in TensorBoard
 tb = TensorBoard(log_dir=Utils.graph_path, histogram_freq=0, write_graph=True, write_images=False)
 
+# Early stop
+early_stop = EarlyStopping(monitor='sparse_accuracy', min_delta=1e-03, patience=4, verbose=1)
 
 # Training the model
 
@@ -315,7 +317,7 @@ History = model.fit_generator(
     steps_per_epoch=Y_train.shape[0]//batch_size,
     epochs=nb_epoch,
     validation_data=(X_re, Y_test),
-    callbacks=[tb],
+#    callbacks=[tb, early_stop],
     verbose=1
 )
 
@@ -328,7 +330,7 @@ print('Test score:', score[0])
 print('Test accuracy:', score[1])
 
 # Visualizing losses and accuracy
-visual_result(History)
+#visual_result(History)
 
 # Predictions
 y_pred = model.predict(X_re)
