@@ -36,11 +36,17 @@ def read_file(directory, value):
 # Loading data from preprocessed files
 def load_data():
     # load training data
-    directory = os.path.join(Utils.data_path, 'Train_fcn_all_' + str(Utils.test_frac) + '.h5')
+    directory = os.path.join(Utils.data_path, 'Train_fcn_all_one_' + str(Utils.test_frac) + '.h5')
     images, train_labels = read_file(directory, 'train')
     # load test data
     directory = os.path.join(Utils.data_path, 'Test_fcn_all_one_' + str(Utils.test_frac) + '.h5')
     _, test_labels = read_file(directory, 'test')
+
+
+#    images = np.array(images[:144, :144])
+#    train_labels = np.array(train_labels[:, :144, :144])
+#    test_labels = np.array(test_labels[:, :144, :144])
+
 
     train_labels = np.reshape(train_labels, (train_labels.shape[0], train_labels.shape[1],  train_labels.shape[2], 1))
     test_labels = np.reshape(test_labels, (test_labels.shape[0], test_labels.shape[1],  test_labels.shape[2], 1))
@@ -53,7 +59,6 @@ def load_data():
         input_size = (images.shape[0], images.shape[1], images.shape[2])
 
     return images, train_labels, test_labels, input_size
-#    return train_images, train_labels, input_size
 
 
 # visualizing losses and accuracy
@@ -251,7 +256,9 @@ def unet(input_shape):
     conv9 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(up9)
     conv9 = Conv2D(32, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(conv9)
 
-    deconv10 = Conv2DTranspose(nb_classes, kernel_size=(2, 2), strides=(1, 1), activation='relu')(conv9)
+#    conv10 = Conv2D(nb_classes, kernel_size=(1, 1), strides=(1, 1), padding='same')(conv9)
+
+    deconv10 = Conv2DTranspose(nb_classes, kernel_size=(2, 2), strides=(1, 1), activation='relu', trainable=False)(conv9)
     conv10 = Conv2D(nb_classes, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(deconv10)
     conv10 = Conv2D(nb_classes, kernel_size=(3, 3), strides=(1, 1), padding='same')(conv10)
 
@@ -267,8 +274,8 @@ def unet(input_shape):
 # Global settings
 model_name = 'fcn_2d'
 nb_classes = Utils.classes
-batch_size = 32
-nb_epoch = 90
+batch_size = 8
+nb_epoch = 200
 # number of convolutional filters to use
 nb_filters = 32
 # size of pooling area for max pooling
@@ -304,10 +311,10 @@ early_stop = EarlyStopping(monitor='sparse_accuracy', min_delta=1e-03, patience=
 # Training the model
 
 X_re = np.reshape(X, (1, X.shape[0], X.shape[1], X.shape[2]))
-'''
+
 History = model.fit(X_re, Y_train, batch_size=1, epochs=nb_epoch,
                     verbose=1,
-                    validation_data=(X, Y_test),
+                    validation_data=(X_re, Y_test),
 #                    callbacks=[tb]
                     )
 
@@ -320,7 +327,7 @@ History = model.fit_generator(
 #    callbacks=[tb, early_stop],
     verbose=1
 )
-
+'''
 
 # Evaluation
 score = model.evaluate(X_re, Y_test, verbose=0)
@@ -340,29 +347,30 @@ y_pred_class += 1
 y_pred_class_all = np.array(y_pred_class)
 
 output_image = scio.loadmat(os.path.join(Utils.data_path, Utils.data_file + '_gt.mat'))[Utils.data_name + '_gt']
-
+#output_image = np.array(output_image[:144, :144])
 y_pred_class[output_image == 0] = 0
 
 # Confusion Matrix
 y_pred_2d = np.reshape(y_pred_class, -1)
 y_true_2d = np.reshape(output_image, -1)
 y_true_2d_test = np.reshape(Y_test, -1)
+y_pred_2d_only = np.array(y_pred_2d[y_true_2d_test != 0])
+y_true_2d_test_only = np.array(y_true_2d_test[y_true_2d_test != 0])
 
 print('Classification Report:')
-#report = classification_report(y_true_2d, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
-report_test = classification_report(y_true_2d_test, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
-#print(report)
+report_test = classification_report(y_true_2d_test_only, y_pred_2d_only)
 print(report_test)
 
 print('Confusion Matrix:')
-#confusion_mtx = confusion_matrix(y_true_2d, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
-confusion_mtx_test = confusion_matrix(y_true_2d_test, y_pred_2d, labels=np.arange(nb_classes+1)[1:])
-#print(confusion_mtx)
+confusion_mtx_test = confusion_matrix(y_true_2d_test_only, y_pred_2d_only)
 print(confusion_mtx_test)
 
 # Save result image
 ground_truth = spectral.imshow(classes=output_image, figsize=(5, 5))
 plt.savefig('gt.png')
+
+pca_image = spectral.imshow(classes=X, figsize=(5, 5))
+plt.savefig('pca.png')
 
 predict_image = spectral.imshow(classes=y_pred_class, figsize=(5, 5))
 plt.savefig('predict.png')
