@@ -15,6 +15,8 @@ import Utils
 import os
 import h5py
 from sklearn.decomposition import PCA, KernelPCA
+import spectral
+import matplotlib.pyplot as plt
 
 
 # Define functions
@@ -31,11 +33,13 @@ def dr_pca(images, is_kernel=False, kernel='linear', num_components=3):
         explained_variance = np.var(images_pca, axis=0)
         explained_variance_ratio = explained_variance / np.sum(explained_variance)
         print('Explained Variance Ratio: '+str(explained_variance_ratio))
+        print('Sum Variance Ratio: ' + str(sum(explained_variance_ratio)))
     else:  # Using PCA
         pca = PCA(n_components=num_components)
         images_pca = pca.fit_transform(images_2d)
         explained_variance_ratio = pca.explained_variance_ratio_
         print('Explained Variance Ratio: '+str(explained_variance_ratio))
+        print('Sum Variance Ratio: '+str(sum(explained_variance_ratio)))
 
     # convert input size to suit the chosen model
     images = np.reshape(images_pca, (images.shape[0], images.shape[1], num_components))
@@ -44,14 +48,16 @@ def dr_pca(images, is_kernel=False, kernel='linear', num_components=3):
 
 
 # Generate the matrix of labels
-def generate_label_matrix(labels, num):
-    labels_matrix = np.zeros((num, HEIGHT, WIDTH), dtype=int)
-    idx = 0
+def generate_label_matrix(labels, num_sample, num_per_mtx=1):
+    labels_matrix = np.zeros((num_sample, HEIGHT, WIDTH), dtype=int)
+    idx, count = 0, 0
     for class_idx in range(OUTPUT_CLASSES):
         for _, sample in enumerate(labels[class_idx]):
             row, col = sample
             labels_matrix[idx, row, col] = class_idx + 1
-            idx += 1
+            count += 1
+            if count % num_per_mtx == 0:
+                idx += 1
     labels_matrix = np.array(labels_matrix, dtype='uint8')
     return labels_matrix
 
@@ -91,7 +97,7 @@ def save_file(images, labels, file_name, variable_name):
     file_name = file_name + str(Utils.test_frac) + '.h5'
     print('Writing: ' + file_name)
     with h5py.File(os.path.join(DATA_PATH, file_name), 'w') as savefile:
-        savefile.create_dataset(variable_name + '_patch', data=images)
+        savefile.create_dataset(variable_name + '_patch', data=images, dtype='float32')
         savefile.create_dataset(variable_name + '_labels', data=labels, dtype='uint8')
     print('Successfully save ' + variable_name + ' data set!')
 
@@ -102,6 +108,7 @@ DATA_PATH = Utils.data_path
 input_mat = scio.loadmat(os.path.join(DATA_PATH, Utils.data_file + '_corrected.mat'))[Utils.data_name + '_corrected']
 target_mat = scio.loadmat(os.path.join(DATA_PATH, Utils.data_file + '_gt.mat'))[Utils.data_name + '_gt']
 
+
 # Define global variables
 
 HEIGHT = input_mat.shape[0]
@@ -110,6 +117,7 @@ BAND = input_mat.shape[2]
 PATCH_SIZE = Utils.patch_size
 OUTPUT_CLASSES = int(target_mat.max())
 TEST_FRAC = Utils.test_frac
+PCA_components = 10
 CLASSES = []
 num_samples, num_train_samples = 0, 0
 
@@ -121,7 +129,7 @@ input_mat /= np.max(input_mat)
 
 
 # Dimensionality Reduction
-input_mat_pca, Variance_ratio = dr_pca(input_mat, False, num_components=3)
+input_mat_pca, Variance_ratio = dr_pca(input_mat, False, num_components=PCA_components)
 
 
 # Collect labels from the given image(Ignore 0 label patches)
@@ -162,14 +170,24 @@ print ('\n' + 130 * '-' + '\n\n' + 40 * '#')
 
 
 # Generate the matrix of labels
-TRAIN_LABELS = generate_label_matrix(train_labels, num_train_samples)
+TRAIN_LABELS = generate_label_matrix(train_labels, num_train_samples//100+1, 100)
 TRAIN_LABELS_ONE = generate_label_matrix_one(train_labels)
 TEST_LABELS_ONE = generate_label_matrix_one(test_labels)
 
-print('\nTotal num of Training labels: %d\n' % TRAIN_LABELS.shape[0])
+print('\nTotal num of Training labels: %d\n' % num_train_samples)
 print(40 * '#')
 print('\nTotal num of Test labels: %d\n' % (num_samples - num_train_samples))
 print(40 * '#')
+
+# Save ground truth & image after PCA
+input_image = spectral.imshow(input_mat, figsize=(5, 5))
+plt.savefig('image.png')
+
+ground_truth = spectral.imshow(classes=target_mat, figsize=(5, 5))
+plt.savefig('gt.png')
+
+pca_image = spectral.imshow(input_mat_pca, figsize=(5, 5))
+plt.savefig('pca_' + str(PCA_components) + '.png')
 
 
 # Save the patches
