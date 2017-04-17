@@ -36,7 +36,7 @@ def read_file(directory, value):
 # Loading data from preprocessed files
 def load_data():
     # load training data
-    directory = os.path.join(Utils.data_path, 'Train_fcn_all_one_' + str(Utils.test_frac) + '.h5')
+    directory = os.path.join(Utils.data_path, 'Train_fcn_all_' + str(Utils.test_frac) + '.h5')
     images, train_labels = read_file(directory, 'train')
     # load test data
     directory = os.path.join(Utils.data_path, 'Test_fcn_all_one_' + str(Utils.test_frac) + '.h5')
@@ -274,7 +274,7 @@ def unet(input_shape):
 # Global settings
 model_name = 'fcn_2d'
 nb_classes = Utils.classes
-batch_size = 8
+batch_size = 2
 nb_epoch = 200
 # number of convolutional filters to use
 nb_filters = 32
@@ -311,7 +311,7 @@ early_stop = EarlyStopping(monitor='sparse_accuracy', min_delta=1e-03, patience=
 # Training the model
 
 X_re = np.reshape(X, (1, X.shape[0], X.shape[1], X.shape[2]))
-
+'''
 History = model.fit(X_re, Y_train, batch_size=1, epochs=nb_epoch,
                     verbose=1,
                     validation_data=(X_re, Y_test),
@@ -327,7 +327,7 @@ History = model.fit_generator(
 #    callbacks=[tb, early_stop],
     verbose=1
 )
-'''
+
 
 # Evaluation
 score = model.evaluate(X_re, Y_test, verbose=0)
@@ -354,24 +354,18 @@ y_pred_class[output_image == 0] = 0
 y_pred_2d = np.reshape(y_pred_class, -1)
 y_true_2d = np.reshape(output_image, -1)
 y_true_2d_test = np.reshape(Y_test, -1)
-y_pred_2d_only = np.array(y_pred_2d[y_true_2d_test != 0])
-y_true_2d_test_only = np.array(y_true_2d_test[y_true_2d_test != 0])
+y_pred_2d_nonzero = np.array(y_pred_2d[y_true_2d_test != 0])
+y_true_2d_test_nonzero = np.array(y_true_2d_test[y_true_2d_test != 0])
 
 print('Classification Report:')
-report_test = classification_report(y_true_2d_test_only, y_pred_2d_only)
+report_test = classification_report(y_true_2d_test_nonzero, y_pred_2d_nonzero)
 print(report_test)
 
 print('Confusion Matrix:')
-confusion_mtx_test = confusion_matrix(y_true_2d_test_only, y_pred_2d_only)
+confusion_mtx_test = confusion_matrix(y_true_2d_test_nonzero, y_pred_2d_nonzero)
 print(confusion_mtx_test)
 
 # Save result image
-ground_truth = spectral.imshow(classes=output_image, figsize=(5, 5))
-plt.savefig('gt.png')
-
-pca_image = spectral.imshow(classes=X, figsize=(5, 5))
-plt.savefig('pca.png')
-
 predict_image = spectral.imshow(classes=y_pred_class, figsize=(5, 5))
 plt.savefig('predict.png')
 
